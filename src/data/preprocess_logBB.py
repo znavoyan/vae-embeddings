@@ -1,33 +1,30 @@
 import numpy as np
 import pandas as pd
 from rdkit import Chem
+import rdkit
 
-def percent_diff(x1, x2):
-    return abs(x1 - x2)/abs(np.mean([x1, x2]))*100
+import argparse
+import sys
+sys.path.append('/home/ani/projects/final_project/src')
 
-def canon_smiles(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    smiles = Chem.CanonSmiles(Chem.MolToSmiles(mol, isomericSmiles=False))
-    
-    return smiles
+from utils import percent_diff, canon_smiles
 
-parser.add_argument('--input', help = 'Path to input file containing fingerprints')
+parser = argparse.ArgumentParser()
 parser.add_argument('--output', help = 'Path to output file')
+args = parser.parse_args()
 
 
-data1_df = pd.read_csv('../new_data/y_test_indices.csv')
-data1_df['dataset'] = 'data1'
-
-data2_sh1 = pd.read_excel('../new_data/LogBB dataset-new.xlsx', sheet_name = 'Experimental', engine = 'openpyxl')
-#data2_sh2 = pd.read_excel('../new_data/LogBB dataset-new.xlsx', sheet_name = '7162 BBB+-', engine = 'openpyxl')
-
-data3_sh1 = pd.read_excel('../new_data/New log BB database.xlsx', sheet_name = 'LI, 415 compound', engine = 'openpyxl')
-data3_sh2 = pd.read_excel('../new_data/New log BB database.xlsx', sheet_name = 'Abraham', 
+data1_df = pd.read_csv('../data/logBB/raw/y_test_indices.csv')
+data2_sh1 = pd.read_excel('../../data/logBB/raw/LogBB dataset-new.xlsx', sheet_name = 'Experimental', engine = 'openpyxl')
+data3_sh1 = pd.read_excel('../../data/logBB/raw/New log BB database.xlsx', sheet_name = 'LI, 415 compound', engine = 'openpyxl')
+data3_sh2 = pd.read_excel('../../data/logBB/raw/New log BB database.xlsx', sheet_name = 'Abraham', 
                           engine = 'openpyxl').dropna(subset = ['SMILES'])
-data3_sh3 = pd.read_excel('../new_data/New log BB database.xlsx', sheet_name = 'Subramanian', engine = 'openpyxl')
+data3_sh3 = pd.read_excel('../../data/logBB/raw/New log BB database.xlsx', sheet_name = 'Subramanian', engine = 'openpyxl')
 
 
-print(data1_df.shape, data2_sh1.shape, data2_sh2.shape, data3_sh1.shape, data3_sh2.shape, data3_sh3.shape)
+print(data1_df.shape, data2_sh1.shape, data3_sh1.shape, data3_sh2.shape, data3_sh3.shape)
+
+data1_df['dataset'] = 'data1'
 
 data2_sh1['BBclass'] = np.nan
 data2_sh1['dataset'] = 'data2_sh1'
@@ -48,9 +45,13 @@ data3_sh3['dataset'] = 'data3_sh3'
 data3_sh3 = data3_sh3[['SMILES', 'logBB', 'BBclass', 'dataset']]
 
 data_df = pd.concat([data1_df, data2_sh1, data3_sh1, data3_sh2, data3_sh3], axis = 0)
+
 data_df.SMILES = data_df.SMILES.apply(lambda x: x.strip())
+print('All datasets:', data_df.shape)
+
 
 data_df = data_df[~data_df.SMILES.apply(lambda x: '.' in x)]
+print('After removing SMILES with dots:', data_df.shape)
 
 
 # Remove Stereochemistry from SMILES and calculate InChIKey
@@ -61,8 +62,8 @@ for s in data_df.SMILES.values:
     try:
         can_smi = canon_smiles(s.strip())
         ikey = Chem.MolToInchiKey(Chem.MolFromSmiles(can_smi))
-    except:
-        print(s)
+    except Exception as e:
+        #print(e)
         can_smi = ''
         ikey = ''
         
@@ -73,11 +74,9 @@ data_df['canon_smiles'] = can_smi_list
 data_df['InchiKey'] = inchikeys
 
 data_df = data_df[data_df.InchiKey != '']
-
-
+print('Calculating InchiKey and removing invalid SMILES:', data_df.shape)
 
 data_df = data_df.drop_duplicates(['InchiKey', 'logBB', 'BBclass']).reset_index(drop = True)
-
 print('Unique InchiKeys:', len(set(data_df.InchiKey)))
 
 
@@ -96,7 +95,6 @@ for ikey, idx in data_df.groupby('InchiKey').groups.items():
     
 duplicated_df = pd.DataFrame({'InchiKey': inchikey_list, 'original_smiles': original_smiles_list, 
                            'logBB': logBB_list, 'BBclass': BBclass_list})
-
 
 
 diff_percent_list = []
@@ -164,5 +162,8 @@ duplicated_df['new_BBclass'] = new_bbclass_list
 
 duplicated_df['SMILES'] = [i[0] for i in duplicated_df.original_smiles.values]
 duplicated_df = duplicated_df[~duplicated_df.new_BBclass.isna()].reset_index(drop = True)
+print('Final dataset size:', duplicated_df.shape)
 
-duplicated_df[['InchiKey', 'SMILES', 'new_logBB', 'new_BBclass']].to_csv(args.output, index = False)
+output_name = args.output.split('.csv')[0]  + '_' + str(duplicated_df.shape[0]) + '.csv'
+print(f'Saving to {output_name}')
+duplicated_df[['InchiKey', 'SMILES', 'new_logBB', 'new_BBclass']].to_csv(output_name, index = False)
