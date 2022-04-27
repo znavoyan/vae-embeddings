@@ -31,6 +31,7 @@ def get_embedding(smiles, model):
         print(e)
         return None
     if X_1.size == 0:
+        print('0 length')
         return None
     z_1 = model.encode(X_1)
     return z_1[0]
@@ -63,19 +64,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     data_df = pd.read_csv(args.input)
-    data_df['fingerprint'] = data_df['fingerprint'].apply(ast.literal_eval)
+    #data_df['fingerprint'] = data_df['fingerprint'].apply(ast.literal_eval)
 
     print('Loading VAE model...')
     print(args.vae_dir)
     vae = VAEUtils(directory=args.vae_dir)
 
-    embeddings, invalid_smiles = get_vae_embeddings(data_df.SMILES.values, vae)
+    embeddings, invalid_smiles = get_vae_embeddings(data_df.smiles.values, vae)
 
     print(len(embeddings), len(invalid_smiles))
     print('Invalid SMILES percent:', len(invalid_smiles)/data_df.shape[0])
 
     vae_emb = []
-    for smi in tqdm(data_df.SMILES.values):
+    for smi in tqdm(data_df.smiles.values):
         if smi in embeddings:
             vae_emb.append(list(embeddings[smi]))
         else:
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     data_df['vae_emb'] = vae_emb
     data_df = data_df[~data_df.vae_emb.isna()]
 
-    data_df['fing_emb'] = [i + j for i, j in zip(data_df.fingerprint.values, data_df.vae_emb.values)]
+    #data_df['fing_emb'] = [i + j for i, j in zip(data_df.fingerprint.values, data_df.vae_emb.values)]
 
     data_df = data_df.reset_index(drop = True)
     print('Dataset size after getting VAE embeddings:', data_df.shape)

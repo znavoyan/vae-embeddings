@@ -4,16 +4,16 @@ from rdkit import Chem
 import argparse
 
 import sys
-sys.path.append('/home/ani/projects/final_project/src')
+sys.path.append('/home/ani/projects/vae-fingerprints/src')
 
 from utils import percent_diff, canon_smiles
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--output', help = 'Path to output file')
+parser.add_argument('--output', help = 'Path to the output file')
 args = parser.parse_args()
 
-data_df = pd.read_excel('/home/ani/projects/final_project/data/logS/raw/9943_compounds_with_experimental_aqueous_solubility_values_in_logarithmic_units.xlsx',
+data_df = pd.read_excel('/home/ani/projects/vae-fingerprints/data/logS/raw/9943_compounds_with_experimental_aqueous_solubility_values_in_logarithmic_units.xlsx',
     engine = 'openpyxl').dropna()
 print('Initial dataset size:', data_df.shape[0])
 

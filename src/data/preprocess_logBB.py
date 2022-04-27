@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem
 import rdkit
+print(rdkit.__version__)
 
 import argparse
 import sys
@@ -14,7 +15,7 @@ parser.add_argument('--output', help = 'Path to output file')
 args = parser.parse_args()
 
 
-data1_df = pd.read_csv('../data/logBB/raw/y_test_indices.csv')
+data1_df = pd.read_csv('../../data/logBB/raw/y_test_indices.csv')
 data2_sh1 = pd.read_excel('../../data/logBB/raw/LogBB dataset-new.xlsx', sheet_name = 'Experimental', engine = 'openpyxl')
 data3_sh1 = pd.read_excel('../../data/logBB/raw/New log BB database.xlsx', sheet_name = 'LI, 415 compound', engine = 'openpyxl')
 data3_sh2 = pd.read_excel('../../data/logBB/raw/New log BB database.xlsx', sheet_name = 'Abraham', 
