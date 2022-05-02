@@ -7,7 +7,6 @@ from resnet import ResNet20
 import ast
 
 import sys
-sys.path.append('/home/ani/projects/final_project/src')
 from utils import load_fold_data
 
 from tqdm import tqdm
@@ -17,9 +16,14 @@ from pathlib import Path
 from datetime import datetime
 from utils import accuracy_logS, split_into_folds
 import logging
+from sklearn.neural_network import MLPRegressor, MLPClassifier
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.metrics import r2_score, mean_squared_error, accuracy_score
+import joblib
 
 
-def train_logS(params):
+
+def train_logS_resnet(params):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
 
@@ -113,8 +117,7 @@ def train_logS(params):
                     train_data = X_train[num_batch*params.batch_size : min((num_batch+1)*params.batch_size, len(X_train))]
                     train_labels = y_train[num_batch*params.batch_size : min((num_batch+1)*params.batch_size, len(y_train))]
 
-                    batch_preds, _ = sess.run([preds, optimizer],
-                                                          feed_dict={X:train_data, y:train_labels.reshape([-1, 1])})
+                    batch_preds, _ = sess.run([preds, optimizer],  feed_dict={X:train_data, y:train_labels.reshape([-1, 1])})
 
                 summary, train_predictions, train_loss, \
                 epoch_train_rmse, epoch_train_r2 = sess.run([performance_summaries, preds, loss, rmse, r2_score],
@@ -170,7 +173,7 @@ def train_logS(params):
 
 
 
-def train_logBB(params):    
+def train_logBB_resnet(params):    
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
 
@@ -303,7 +306,7 @@ def train_logBB(params):
                   'train_acc': fold_train_acc, 'test_acc': fold_test_acc}).to_csv(f'{experiment_name}/final_metrics_each_fold.csv')
 
 
-def train_logD(params):
+def train_logD_resnet(params):
     config = tf.ConfigProto()
     config.gpu_options.allow_growth=True
 
@@ -441,6 +444,111 @@ def train_logD(params):
                   'train_rmse': fold_train_rmse, 'test_rmse': fold_test_rmse}).to_csv(f'{experiment_name}/final_metrics_each_fold.csv')
 
 
+def train_mlp(params):
+    num_folds = len(os.listdir(params.fold_indices_dir))
+    Path(f"{params.save_dir}/models/mlp").mkdir(parents=True, exist_ok=True)
+
+    if params.property.lower() == 'logs' or params.property.lower() == 'logd':
+        r2_list = []
+        rmse_list = []
+
+        for fold_num in range(params.start_fold, num_folds + 1):
+            X_train, X_test, y_train, y_test = load_fold_data(params.data, fold_num, params.feature, params.fold_indices_dir, params.property)
+
+            model = MLPRegressor(solver = 'sgd', max_iter = params.mlp_max_iter).fit(X_train, y_train)
+            filename = os.path.join(params.save_dir, f'/models/mlp/mlp_fold{i}.sav')
+            joblib.dump(model, filename)
+
+            preds = model.predict(X_test)
+            r2_list.append(r2_score(y_test, preds))
+            rmse_list.append(mean_squared_error(y_test, preds, squared = False))
+
+        pd.DataFrame({'fold': np.arange(1, num_folds + 1), 
+                  'test_r2': r2_list,
+                  'test_rmse': rmse_list}).to_csv(f'{params.save_dir}/final_metrics_mlp_each_fold.csv')
+
+    elif params.property.lower() == 'logbb':
+        acc_list = []
+        f1_list = []
+        auc_list = []
+        for fold_num in range(params.start_fold, num_folds + 1):
+            X_train, X_test, y_train, y_test = load_fold_data(params.data, fold_num, params.feature, params.fold_indices_dir, params.property)
+
+            model = MLPClassifier(solver = 'sgd', max_iter = params.mlp_max_iter).fit(X_train, y_train)
+            filename = os.path.join(params.save_dir, f'/models/mlp/mlp_fold{i}.sav')
+            joblib.dump(model, filename)
+
+            preds = model.predict(X_test)
+            acc_list.append(accuracy_score(y_true = y_test, y_pred = preds))
+            f1_list.append(f1_score(y_true = y_test, y_pred = preds))
+            auc_list.append(roc_auc_score(y_true = y_test, y_score = preds))
+
+        pd.DataFrame({'fold': np.arange(1, num_folds + 1), 
+                  'test_acc': acc_list,
+                  'test_f1': f1_list,
+                  'test_auc': auc_list}).to_csv(f'{params.save_dir}/final_metrics_mlp_each_fold.csv')
+
+
+def train_lr(params):
+    num_folds = len(os.listdir(params.fold_indices_dir))
+    Path(f"{params.save_dir}/models/lr").mkdir(parents=True, exist_ok=True)
+
+    if params.property.lower() == 'logs' or params.property.lower() == 'logd':
+        r2_list = []
+        rmse_list = []
+
+        for fold_num in range(params.start_fold, num_folds + 1):
+            X_train, X_test, y_train, y_test = load_fold_data(params.data, fold_num, params.feature, params.fold_indices_dir, params.property)
+
+            model = LinearRegression(solver = 'sgd').fit(X_train, y_train)
+            filename = os.path.join(params.save_dir, f'/models/lr/lr_fold{i}.sav')
+            joblib.dump(model, filename)
+
+            preds = model.predict(X_test)
+            r2_list.append(r2_score(y_test, preds))
+            rmse_list.append(mean_squared_error(y_test, preds, squared = False))
+
+        pd.DataFrame({'fold': np.arange(1, num_folds + 1), 
+                  'test_r2': r2_list,
+                  'test_rmse': rmse_list}).to_csv(f'{params.save_dir}/final_metrics_lr_each_fold.csv')
+
+    elif params.property.lower() == 'logbb':
+        acc_list = []
+        f1_list = []
+        auc_list = []
+        for fold_num in range(params.start_fold, num_folds + 1):
+            X_train, X_test, y_train, y_test = load_fold_data(params.data, fold_num, params.feature, params.fold_indices_dir, params.property)
+
+            model = LogisticRegression(max_iter = 200).fit(X_train, y_train)
+            filename = os.path.join(params.save_dir, f'/models/lr/lr_fold{i}.sav')
+            joblib.dump(model, filename)
+
+            preds = model.predict(X_test)
+            acc_list.append(accuracy_score(y_true = y_test, y_pred = preds))
+            f1_list.append(f1_score(y_true = y_test, y_pred = preds))
+            auc_list.append(roc_auc_score(y_true = y_test, y_score = preds))
+
+        pd.DataFrame({'fold': np.arange(1, num_folds + 1), 
+                  'test_acc': acc_list,
+                  'test_f1': f1_list,
+                  'test_auc': auc_list}).to_csv(f'{params.save_dir}/final_metrics_lr_each_fold.csv')
+
+
+def train(params):
+    if params.model.lower() == 'resnet':
+        if params.property.lower() == 'logs':
+            train_logS_resnet(params)
+        if params.property.lower() == 'logd':
+            train_logD_resnet(params)
+        if params.property.lower() == 'logbb':
+            train_logBB_resnet(params)
+
+    elif params.model.lower() == 'mlp':
+        train_mlp(params)
+
+    elif params.model.lower() == 'lr':
+        train_lr(params)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -452,8 +560,10 @@ if __name__ == '__main__':
     parser.add_argument('--repeat_folds', type = int, default = 1)
     parser.add_argument('--fold_indices_dir', help = 'Path to folder containing train-test indices for each fold')
     parser.add_argument('--start_fold', type = int, default = 1)
+    parser.add_argument('--model', choices = ['ResNet', 'MLP', 'LR'])
 
-    parser.add_argument('--epochs', type=int)
+    parser.add_argument('--mlp_max_iter', type=int, default = None)
+    parser.add_argument('--epochs', type=int, default = None)
     parser.add_argument('--learning_rate', type=float, default=0.00001)
     parser.add_argument('--batch_size', type=int, default=47)
     parser.add_argument('--l2_wd', type = float, default=0.00001, help='L2 weight decay')
@@ -472,17 +582,29 @@ if __name__ == '__main__':
     if (not os.path.isdir(args.fold_indices_dir)) or (len(os.listdir(args.fold_indices_dir)) == 0):
         split_into_folds(args.data, args.fold_num, args.repeat_folds, args.property, args.fold_indices_dir)
 
-    if args.property == 'logS':
+    if args.property.lower() == 'logs':
         args.loss = 'rmse'
-        args.epochs = 2000
-        train_logS(args)
+        if not args.epochs:
+            args.epochs = 2000
+        if not args.mlp_max_iter:
+            args.mlp_max_iter = 700
+        train(args)
 
-    elif args.property == 'logD':
+    elif args.property.lower() == 'logd':
         args.loss = 'rmse'
-        args.epochs = 2000
-        train_logD(args)
+        if not args.epochs:
+            args.epochs = 1500
+        if not args.mlp_max_iter:
+            args.mlp_max_iter = 1000
+        train(args)
+
+    elif args.property.lower() == 'logbb':
+        args.loss = 'binary_cross_entropy'
+        if not args.epochs:
+            args.epochs = 85
+        if not args.mlp_max_iter:
+            args.mlp_max_iter = 1000    
+        train(args)
 
     else:
-        args.loss = 'binary_cross_entropy'
-        args.epochs = 85
-        train_logBB(args)
+        raise ValueError('Invalid property name!')
